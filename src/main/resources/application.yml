@@ -1,0 +1,3 @@
+website:
+  urls: https://egov.uscis.gov/casestatus/landing.do
+#  urls: https://egov.uscis.gov/casestatus/mycasestatus.do?appReceiptNum=
