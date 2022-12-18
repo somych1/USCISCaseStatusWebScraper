@@ -10,6 +10,5 @@ public class ResponseDTO {
     String caseId;
     String status;
     String description;
-    Date date;
 
 }

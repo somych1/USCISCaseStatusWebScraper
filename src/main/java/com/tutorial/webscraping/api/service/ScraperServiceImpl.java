@@ -19,22 +19,14 @@ public class ScraperServiceImpl implements ScraperService {
     @Value("#{'${website.urls}'}")
     String url;
 
-    @Override
-    public ResponseDTO getStatus(String caseId) {
+    // processing case number through uscis website
+    private ResponseDTO processCaseId(WebClient webClient, String caseId) {
         ResponseDTO responseDTO = new ResponseDTO();
-
-        //browser setup
-        WebClient webClient = browserSetup();
-
-        String serviceCenter = caseId.substring(0, 3);
-        String caseNumber = caseId.substring(3);
-        System.out.println(serviceCenter);
-        System.out.println(caseNumber);
 
         try {
             // loading the HTML to a Document Object
             HtmlPage page = webClient.getPage(url);
-
+            System.out.println(caseId);
             // case lookup
             HtmlInput input = page.getHtmlElementById("receipt_number");
             input.setValueAttribute(caseId);
@@ -42,21 +34,35 @@ public class ScraperServiceImpl implements ScraperService {
             HtmlPage pageAfterClick = button.click();
 
             // new page after click
-            HtmlHeading1 h1 = pageAfterClick.getFirstByXPath("//div/h1");
-            HtmlParagraph paragraph = pageAfterClick.getFirstByXPath("//div/p");
+            HtmlDivision div = pageAfterClick.getFirstByXPath("//div[contains(@class, 'rows text-center')]");
+            HtmlHeading1 h1 = div.getFirstByXPath("//h1");
+            HtmlParagraph paragraph = div.getFirstByXPath("//p");
 
             //setting responseDTO
             responseDTO = responseDTOBuilder(caseId, h1.getTextContent(), paragraph.getTextContent());
         } catch (IOException ex) {
             ex.printStackTrace();
+        } catch (NullPointerException ex) {
+            String str = "The application receipt number entered is invalid. Please check your receipt number and try again.";
+            responseDTO = responseDTOBuilder(caseId, str, "");
         }
         return responseDTO;
     }
 
     @Override
+    public ResponseDTO getStatus(String caseId) {
+        //browser setup
+        WebClient webClient = browserSetup();
+
+        ResponseDTO responseDTO = processCaseId(webClient, caseId);
+        return responseDTO;
+    }
+
+    @Override
     public List<ResponseDTO> getListOfCaseStatuses(String caseId, Integer range) {
-        ResponseDTO responseDTO = new ResponseDTO();
+
         List<ResponseDTO> responseDTOList = new ArrayList<>();
+
         //browser setup
         WebClient webClient = browserSetup();
 
@@ -68,32 +74,10 @@ public class ScraperServiceImpl implements ScraperService {
         Integer startPosition = new Integer(caseNumber);
 
         for (int i = 0; i < range; i++) {
-
-            try {
-                // Increased case number
-                String newCaseId = serviceCenter + (startPosition + i);
-
-                // loading the HTML to a Document Object
-                HtmlPage page = webClient.getPage(url);
-                System.out.println(newCaseId);
-                // case lookup
-                HtmlInput input = page.getHtmlElementById("receipt_number");
-                input.setValueAttribute(newCaseId);
-                HtmlInput button = page.getElementByName("initCaseSearch");
-                HtmlPage pageAfterClick = button.click();
-
-                // new page after click
-                HtmlHeading1 h1 = pageAfterClick.getFirstByXPath("//div/h1");
-                HtmlParagraph paragraph = pageAfterClick.getFirstByXPath("//div/p");
-
-                //setting responseDTO
-                responseDTO = responseDTOBuilder(newCaseId, h1.getTextContent(), paragraph.getTextContent());
-                responseDTOList.add(responseDTO);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
+            String newCaseId = serviceCenter + (startPosition + i);
+            ResponseDTO responseDTO = processCaseId(webClient, newCaseId);
+            responseDTOList.add(responseDTO);
         }
-
         return responseDTOList;
     }
 
@@ -114,7 +98,7 @@ public class ScraperServiceImpl implements ScraperService {
         return webClient;
     }
 
-    // response object builder
+    // case status response object builder
     private ResponseDTO responseDTOBuilder(String caseId, String status, String description) {
         ResponseDTO responseDTO = new ResponseDTO();
         responseDTO.setCaseId(caseId);
