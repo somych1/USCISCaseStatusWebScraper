@@ -10,23 +10,24 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 //github.com/somych1
 @Service
 public class ScraperServiceImpl implements ScraperService {
-
+    private static final Logger LOGGER = Logger.getLogger(ScraperServiceImpl.class.getName());
     //Reading data from property file to a list
     @Value("#{'${website.urls}'}")
     String url;
 
     // processing case number through uscis website
     private ResponseDTO processCaseId(WebClient webClient, String caseId) {
+        LOGGER.info("Processing case number: " + caseId);
         ResponseDTO responseDTO = new ResponseDTO();
 
         try {
             // loading the HTML to a Document Object
             HtmlPage page = webClient.getPage(url);
-            System.out.println(caseId);
             // case lookup
             HtmlInput input = page.getHtmlElementById("receipt_number");
             input.setValueAttribute(caseId);
@@ -40,11 +41,14 @@ public class ScraperServiceImpl implements ScraperService {
 
             //setting responseDTO
             responseDTO = responseDTOBuilder(caseId, h1.getTextContent(), paragraph.getTextContent());
+            LOGGER.info("Case found");
         } catch (IOException ex) {
             ex.printStackTrace();
         } catch (NullPointerException ex) {
+            LOGGER.info("Invalid case number");
             String str = "The application receipt number entered is invalid. Please check your receipt number and try again.";
-            responseDTO = responseDTOBuilder(caseId, str, "");
+            responseDTO.setCaseId(caseId);
+            responseDTO.setStatus(str);
         }
         return responseDTO;
     }
@@ -55,6 +59,7 @@ public class ScraperServiceImpl implements ScraperService {
         WebClient webClient = browserSetup();
 
         ResponseDTO responseDTO = processCaseId(webClient, caseId);
+        LOGGER.info("Case status retrieved");
         return responseDTO;
     }
 
@@ -71,13 +76,17 @@ public class ScraperServiceImpl implements ScraperService {
 
         // string split case number
         String caseNumber = caseId.substring(4);
+
         Integer startPosition = new Integer(caseNumber);
+        LOGGER.info("Range of cases from " + caseId + " to " + serviceCenter + (startPosition + range - 1) + " requested.");
 
         for (int i = 0; i < range; i++) {
             String newCaseId = serviceCenter + (startPosition + i);
             ResponseDTO responseDTO = processCaseId(webClient, newCaseId);
             responseDTOList.add(responseDTO);
+            LOGGER.info("Case added to the list");
         }
+        LOGGER.info("Range of cases from " + caseId + " to " + serviceCenter + (startPosition + range - 1) + " retrieved.");
         return responseDTOList;
     }
 
@@ -95,6 +104,7 @@ public class ScraperServiceImpl implements ScraperService {
         webClient.getOptions().setDownloadImages(false);
         webClient.getOptions().setGeolocationEnabled(false);
         webClient.getOptions().setAppletEnabled(false);
+        LOGGER.info("WebClient initialized. Browser Chrome");
         return webClient;
     }
 
@@ -104,6 +114,7 @@ public class ScraperServiceImpl implements ScraperService {
         responseDTO.setCaseId(caseId);
         responseDTO.setStatus(status);
         responseDTO.setDescription(description);
+        LOGGER.info("Case status response object created");
         return responseDTO;
     }
 }
